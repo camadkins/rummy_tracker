@@ -134,7 +134,8 @@ def load_config(config_path="config.yaml"):
         default_config = {
             'TEST_MODE': False,
             'INITIAL_HAND_COUNT': 7,
-            'SCORING_MODE': 'manual'
+            'SCORING_MODE': 'manual',
+            'DISPLAY_WIFE_STRATEGY': False,  # New setting
         }
         with open(config_path, 'w') as f:
             yaml.safe_dump(default_config, f)
