@@ -51,8 +51,8 @@ This Rummy Card Tracker is designed to help **me** improve my Rummy game against
 4. From the main menu:
    - `1`: Start a new game (deal cards).
    - `2`: View help.
-   - `3`: Quit.
-   - `4`: Options menu (configure test mode, initial hand count, and scoring mode).
+   - `3`: Options menu (configure test mode, initial hand count, and scoring mode).
+   - `4`: Quit.
 
    After dealing a game, follow on-screen prompts. The program guides me through each turn. I can quit at any prompt by typing `quit` or `exit`.
 
