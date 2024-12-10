@@ -5,83 +5,121 @@
 #### Description
 This Rummy Card Tracker is designed to help **me** improve my Rummy game against my wife. Over time, I’ve enhanced it to provide strategic guidance, automatically handle gameplay steps, log game histories, and offer a flexible configuration system. While I built it for myself, anyone who wants a helping hand in two-player Rummy can benefit from its features.
 
+---
+
 ## Features
 
-- **Menu-Driven Interface**:
-  On startup, a main menu offers options to start a new game, view help, quit, or configure settings. This makes it easy for me to jump right into a game or adjust options before playing.
+### **Menu-Driven Interface**
+- Start a new game, view help, adjust settings, or quit from a simple main menu.
 
-- **Persistent Configuration via YAML**:
-  A `config.yaml` file stores key options between sessions:
-  - **Test Mode**: If enabled, no game results are saved to CSV/PDF.
-  - **Initial Hand Count**: Choose from 5, 7, or 10 cards to be dealt initially.
-  - **Scoring Mode**: Set to `manual` or `auto`. In `manual` mode, I enter final scores at game end. In `auto` mode, the program calculates leftover points in each player’s hand to determine the winner.
+### **Persistent Configuration via YAML**
+Key options are stored in `config.yaml` for consistency across sessions:
+- **Test Mode**: No game results are saved to CSV or PDF if enabled.
+- **Initial Hand Count**: Choose to deal 5, 7, or 10 cards at the start of a game.
+- **Scoring Mode**: Select `manual` (enter scores at game end) or `auto` (calculate winner based on leftover card points).
+- **Wife’s Strategy Display**: Toggle the visibility of her predicted strategy during gameplay.
 
-- **Game State Tracking and Display**:
-  The program manages dealt cards, my hand, and the discard pile. My wife’s cards remain hidden but the program infers possible information about them.
-  Cards are displayed using Unicode suits (`♠, ♥, ♦, ♣`) for easy readability. Separators (`------------------------------------------------------------`) appear between turns to help me distinguish the flow of the game state.
+### **Game State Tracking and Display**
+- Manage dealt cards, my hand, and the discard pile.
+- Track my wife’s known and unknown cards.
+- Unicode suits (`♠, ♥, ♦, ♣`) improve card readability in terminal outputs.
+- Separators (`------------------------------------------------------------`) between turns for easy game flow navigation.
 
-- **Heuristic Probability and Recommendations**:
-  After each turn, it calculates which player is closer to winning and suggests optimal moves such as where to draw or which card to discard, saving me from guesswork.
+### **Heuristic Probability and Recommendations**
+- Calculates probabilities of winning for both players after each turn.
+- Provides recommendations for optimal moves, including:
+  - **Draw Recommendations**: Whether to draw from the deck or discard pile.
+  - **Discard Recommendations**: Which card is least valuable or most harmful to keep.
 
-- **Meld Logic and Conditional Prompts**:
-  Only prompts me to lay down melds if I have any, showing a list of possible melds.
-  Similarly, I only see prompts for playing off melds if melds exist on the table **and** I have cards that can extend them.
+### **Meld Logic and Conditional Prompts**
+- Prompts for laying down melds and playing off existing melds only when relevant.
+- Lists possible melds in-hand to simplify decision-making.
 
-- **Turn-Based Flow with Guidance**:
-  The program automates each turn—drawing, melding, discarding—prompting me only when necessary. If I have no melds, it doesn’t ask. If I can’t play off melds, it skips that step. This keeps the game flow smooth and clutter-free.
+### **Wife’s Strategy Insights**
+- Tracks her known cards and melds, analyzing why she draws or discards specific cards.
+- Provides a predicted strategy, helping me make more informed moves.
 
-- **Scoring at Game End**:
-  At the end of a game:
-  - **Manual Mode**: I enter final scores.
-  - **Auto Mode**: It calculates leftover card points for both players and decides the winner by who has fewer leftover points.
+### **Turn-Based Flow**
+- Automates each turn step (drawing, melding, discarding) and prompts only when needed.
+- Prevents skipping discard unless my hand is empty.
 
-  Results are logged in a CSV file, and a PDF summary is generated—unless test mode is on, in which case no logs or PDFs are produced.
+### **Scoring and Game End**
+- **Manual Mode**: Enter final scores at the end of the game.
+- **Auto Mode**: Automatically calculate winner based on leftover card points.
+- Results are logged in a CSV file, and a PDF summary is generated unless in test mode.
 
-- **Quit Anytime**:
-  Type `quit` or `exit` at any prompt (outside the main menu) to immediately end the program.
+### **Quit Anytime**
+- Type `quit` or `exit` at any prompt outside the main menu to immediately end the program.
+
+---
 
 ## How to Run
 
-1. Clone the repository and install any dependencies (e.g. `pip install pyyaml fpdf`).
+1. Clone the repository and install dependencies:
+   ```bash
+   pip install pyyaml fpdf
+   ```
 2. Navigate to the project folder.
-3. Run:
+3. Run the program:
    ```bash
    python tracker.py
    ```
-4. From the main menu:
+4. Main menu options:
    - `1`: Start a new game (deal cards).
    - `2`: View help.
-   - `3`: Options menu (configure test mode, initial hand count, and scoring mode).
+   - `3`: Adjust settings (test mode, hand count, scoring mode, wife’s strategy display).
    - `4`: Quit.
 
-   After dealing a game, follow on-screen prompts. The program guides me through each turn. I can quit at any prompt by typing `quit` or `exit`.
+---
 
 ## Interaction and Guidance
 
-- Each turn is clearly separated, and I’m prompted only for relevant actions.
-- Meld and play-off prompts only appear if I can actually perform those actions.
-- Recommendations for drawing and discarding appear automatically.
-- No skipping discard unless my hand is empty, ensuring realistic gameplay.
+- **Automatic Guidance**: Turn actions are handled step-by-step, prompting only for relevant decisions.
+- **Strategic Recommendations**: Receive optimal move suggestions based on the game state.
+- **Dynamic Prompts**: Only see options for laying down or playing off melds when applicable.
 
-## Additional Commands (Rarely Needed)
+---
 
-- **update_hand**, **update_discard**, **wife_picks_discard**, **wife_draws_card**, **wife_discards_card**: Manually adjust the state if something gets out of sync.
-- **suggest_melds**, **calculate_probabilities**: Manually request meld suggestions or recalculate probabilities (normally automatic).
-- **recommend_discard**, **recommend_draw_action**: Manually request recommendations (already automatic).
-- **end_game**: Manually end the game and log results.
-- **quit** or **exit**: Quit at any prompt outside the main menu.
+## New Features
 
-Normally, I won’t need these commands thanks to the automated guidance.
+### **WifeLogic Class**
+- Tracks her known cards and melds.
+- Analyzes her actions, offering insights into her strategy.
+- Helps predict her next moves, guiding me to counter strategically.
+
+### **Probability Enhancements**
+- Includes her meld progress and unknown cards for better estimation.
+
+### **Improved Validation and Error Prevention**
+- Prevents duplicate discards.
+- Validates draw and discard actions for consistency.
+
+### **Streamlined Gameplay Flow**
+- Automatically integrates her strategy insights into the turn rotation.
+- Configurable display for wife’s strategy (toggleable via options menu).
+
+---
+
+## Additional Commands (Optional)
+
+- **Manual Updates**:
+  - `update_hand`, `update_discard`, `wife_picks_discard`, `wife_draws_card`, `wife_discards_card` allow manual adjustments.
+- **Manual Recommendations**:
+  - `recommend_discard`, `recommend_draw_action` for recalculated suggestions.
+- **Meld Logic**:
+  - `suggest_melds`, `calculate_probabilities` for manual intervention.
+- **End Game**:
+  - `end_game` to finish and log the game early.
+
+---
 
 ## Remaining Tasks
 
-- **Refine Probability Calculation**: More complex logic for greater accuracy.
-- **Improve Wife’s Logic**: Make her moves more realistic or strategic.
-- **Expand Testing and Validation**: More unit tests, handle edge cases.
-- **Further Documentation and Polish**
-- **Future Enhancements**:
-  - Consider a GUI for visual interaction.
-  - Introduce advanced Rummy variants and scoring rules.
+- **Undo Functionality**: Allow undoing the last action during a turn.
+- **Advanced Strategy Analysis**: Enhance the `WifeLogic` class with deeper insights into meld-building and discard patterns.
+- **GUI Transition**: Develop a graphical interface for improved user experience.
+- **Expanded Testing**: Strengthen edge case handling through rigorous testing.
+- **Rummy Variants**: Add support for advanced Rummy rule sets and scoring.
 
 ## Changelog
 
@@ -118,3 +156,12 @@ Normally, I won’t need these commands thanks to the automated guidance.
 - Added an options menu accessible from the main menu to toggle test mode, set initial hand count (5/7/10), and choose scoring mode (manual/auto).
 - In test mode, prevented writing results to CSV/PDF for a safe testing environment.
 - Implemented auto scoring mode, which calculates leftover card points at the end of the game to determine the winner automatically.
+- Added a WifeLogic class in wife_logic.py to analyze her gameplay decisions.
+- Integrated wife’s strategy analysis into tracker.py for discard and draw actions.
+- Added an option to toggle the display of her strategy in the options menu.
+- Updated the configuration file (config.yaml) to persist the DISPLAY_WIFE_STRATEGY setting.
+- Enhanced the probability calculation to include her meld progress and unknown cards.
+- Added error prevention to avoid duplicate discards in the discard pile.
+- Improved input validation for wife’s draw and discard actions.
+- Streamlined gameplay flow to automatically include wife’s strategy analysis without requiring manual prompts.
+- Refactored turn-based logic for better clarity and maintainability.
