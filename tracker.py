@@ -92,8 +92,9 @@ def options_menu():
         print(f"1) Toggle test mode (current: {'ON' if TEST_MODE else 'OFF'})")
         print(f"2) Set initial hand count (current: {INITIAL_HAND_COUNT})")
         print(f"3) Set scoring mode (current: {SCORING_MODE})")
-        print("4) Return to main menu")
-        choice = safe_input("Choose an option (1/2/3/4): ").strip()
+        print(f"4) Toggle wife's strategy display (current: {'ON' if config.get('DISPLAY_WIFE_STRATEGY', False) else 'OFF'})")
+        print("5) Return to main menu")
+        choice = safe_input("Choose an option (1/2/3/4/5): ").strip()
         if choice == '1':
             TEST_MODE = not TEST_MODE
             config['TEST_MODE'] = TEST_MODE
@@ -110,7 +111,7 @@ def options_menu():
                 print("Invalid choice, must be 5, 7, or 10.")
         elif choice == '3':
             mode = safe_input("Scoring mode ('manual' or 'auto'): ").strip().lower()
-            if mode in ['manual','auto']:
+            if mode in ['manual', 'auto']:
                 SCORING_MODE = mode
                 config['SCORING_MODE'] = SCORING_MODE
                 save_config(config)
@@ -118,10 +119,14 @@ def options_menu():
             else:
                 print("Invalid mode. Must be 'manual' or 'auto'.")
         elif choice == '4':
+            current_setting = config.get('DISPLAY_WIFE_STRATEGY', False)
+            config['DISPLAY_WIFE_STRATEGY'] = not current_setting
+            save_config(config)
+            print(f"Wife's strategy display is now {'ON' if not current_setting else 'OFF'}.")
+        elif choice == '5':
             return
         else:
             print("Invalid choice.")
-
 
 def play_turn():
     global current_player, my_hand, wife_hand, discard_pile, my_melds, wife_melds, need_final_discard
@@ -342,12 +347,56 @@ def deal():
     play_turn()
 
 def wife_picks_discard():
-    # Using logic in play_turn steps
-    pass
+    global wife_hand, discard_pile, wife_known_cards, wife_unknown_cards
+    print(f"Discard pile: {', '.join(display_card(c) for c in discard_pile)}")
+    picked_cards = safe_input("Enter cards your wife picked from the discard pile (e.g., '8D, TH'): ").strip().upper().split(", ")
+    for card in picked_cards:
+        if card in discard_pile:
+            discard_pile.remove(card)
+            wife_known_cards.append(card)
+            wife_hand.append("HIDDEN")
+            if card in wife_unknown_cards:
+                wife_unknown_cards.remove(card)
+        else:
+            print(f"Warning: {card} is not in the discard pile.")
+    print(f"Updated discard pile: {', '.join(display_card(c) for c in discard_pile)}")
+    print(f"Wife's hand: {len(wife_hand)} cards (hidden)")
+
 
 def wife_draws_card():
-    # Already implemented in play_turn steps
-    pass
+    global deck, wife_logic
+    if deck:
+        drawn_card = deck.pop(0)
+        wife_logic.update_known_cards(drawn_card, action="add")
+        print(f"Your wife drew a card from the deck.")
+        print(wife_logic.analyze_draw(drawn_card))
+
+        if config.get('DISPLAY_WIFE_STRATEGY', False):
+            print("\n--- Wife's Predicted Strategy ---")
+            print(wife_logic.predict_strategy())
+    else:
+        print("No cards left in deck!")
+
+def append_to_discard(card):
+    """Adds a card to the discard pile only if it's not already the top card."""
+    global discard_pile
+    if discard_pile and card == discard_pile[-1]:
+        print("You cannot discard the same card that is already on top of the pile.")
+    else:
+        discard_pile.append(card)
+        print(f"Card {display_card(card)} added to the discard pile.")
+
+def wife_discards_card():
+    global discard_pile, wife_logic
+    discarded_card = get_valid_card_input("Enter the card your wife discarded: ")
+    wife_logic.update_known_cards(discarded_card, action="remove")
+    discard_pile.append(discarded_card)
+    print(f"Card {display_card(discarded_card)} added to discard pile.")
+    print(wife_logic.analyze_discard(discarded_card))
+
+    if config.get('DISPLAY_WIFE_STRATEGY', False):
+        print("\n--- Wife's Predicted Strategy ---")
+        print(wife_logic.predict_strategy())
 
 def wife_lays_down_meld():
     global wife_hand, wife_known_cards, wife_unknown_cards, wife_meld_count
@@ -373,18 +422,53 @@ def wife_lays_down_meld():
         print("Error laying down wife's meld.")
 
 def calculate_probabilities():
-    melds = detect_melds(my_hand)
-    my_meld_count = len(melds)
-    global wife_meld_count
-    total_melds = my_meld_count + wife_meld_count
-    if total_melds == 0:
-        my_probability = 0.5
-        her_probability = 0.5
-    else:
-        my_probability = my_meld_count / total_melds
-        her_probability = wife_meld_count / total_melds
+    global wife_known_cards, wife_unknown_cards, my_melds, wife_melds, my_hand, discard_pile, deck
 
-    print(f"Estimated win probability - You: {my_probability:.2f}, Wife: {her_probability:.2f}")
+    # Factors for probability calculation
+    total_cards = len(deck) + len(discard_pile) + len(my_hand) + len(wife_known_cards) + len(wife_unknown_cards)
+
+    # My meld progress
+    my_possible_melds = detect_melds(my_hand)
+    my_meld_count = len(my_melds)
+    my_completion_potential = 0
+
+    for card in my_hand:
+        needed_for_meld = []
+        for suit in suits:
+            needed_card = f"{card[:-1]}{suit}"
+            if needed_card not in my_hand and needed_card not in discard_pile:
+                needed_for_meld.append(needed_card)
+        my_completion_potential += len(needed_for_meld)
+
+    # Wife meld progress
+    wife_meld_count = len(wife_melds)
+    wife_completion_potential = 0
+
+    for card in wife_known_cards:
+        needed_for_meld = []
+        for suit in suits:
+            needed_card = f"{card[:-1]}{suit}"
+            if needed_card not in wife_known_cards and needed_card not in discard_pile:
+                needed_for_meld.append(needed_card)
+        wife_completion_potential += len(needed_for_meld)
+
+    # Estimate unknowns for wife
+    wife_completion_potential += len(wife_unknown_cards) / 3  # Assume 1/3 useful for melds
+
+    # Calculate probabilities
+    my_probability = (my_meld_count + my_completion_potential / total_cards)
+    wife_probability = (wife_meld_count + wife_completion_potential / total_cards)
+
+    total_probability = my_probability + wife_probability
+
+    if total_probability > 0:
+        my_probability = my_probability / total_probability
+        wife_probability = wife_probability / total_probability
+    else:
+        my_probability = wife_probability = 0.5
+
+    # Display probabilities
+    print(f"Estimated win probability - You: {my_probability:.2f}, Wife: {wife_probability:.2f}")
 
 def recommend_discard():
     melds = detect_melds(my_hand)
