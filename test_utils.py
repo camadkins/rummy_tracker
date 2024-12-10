@@ -1,32 +1,61 @@
-import pytest
-from utils import sort_hand, is_valid_meld, detect_melds, card_value
+import unittest
+from utils import (
+    sort_hand, is_valid_meld, detect_melds, card_value, display_card, display_hand,
+    load_config, save_config
+)
 
-def test_sort_hand():
-    hand = ["9H","AS","2D","3C","TH","KD","7S"]
-    sort_hand(hand)
-    # After sorting by suit (S,H,D,C) and rank order, check a known order
-    # Suits order: S,H,D,C and ranks order A23456789TJQK
-    # Hand suits: S=AS,7S; H=9H,TH; D=2D,KD; C=3C
-    # Final order should be: AS,7S,9H,TH,2D,KD,3C
-    assert hand == ["AS","7S","9H","TH","2D","KD","3C"]
+class TestUtils(unittest.TestCase):
 
-def test_is_valid_meld():
-    # Set of same rank
-    assert is_valid_meld(["AS","AH","AD"]) == True
-    # Run of same suit
-    assert is_valid_meld(["7H","8H","9H"]) == True
-    # Invalid (not a set or run)
-    assert is_valid_meld(["AS","2H","9D"]) == False
+    def test_sort_hand(self):
+        hand = ["5H", "2C", "AS", "KD", "9H"]
+        sort_hand(hand)
+        self.assertEqual(hand, ["AS", "2C", "5H", "9H", "KD"])
 
-def test_detect_melds():
-    hand = ["AS","AH","AD","2H","3H","4H","9D"]
-    melds = detect_melds(hand)
-    # Expected melds: AS,AH,AD (set of Aces), and 2H,3H,4H (run of hearts)
-    assert ["AS","AH","AD"] in melds
-    assert ["2H","3H","4H"] in melds
+    def test_is_valid_meld_run(self):
+        meld = ["5H", "6H", "7H"]
+        self.assertTrue(is_valid_meld(meld))
 
-def test_card_value():
-    assert card_value("AS") == 1
-    assert card_value("9D") == 9
-    assert card_value("TH") == 10
-    assert card_value("KC") == 10
+    def test_is_valid_meld_set(self):
+        meld = ["5H", "5S", "5D"]
+        self.assertTrue(is_valid_meld(meld))
+
+    def test_is_valid_meld_invalid(self):
+        meld = ["5H", "6H", "8H"]
+        self.assertFalse(is_valid_meld(meld))
+
+    def test_detect_melds(self):
+        hand = ["5H", "6H", "7H", "5S", "5D", "9C"]
+        melds = detect_melds(hand)
+        # Sort melds before asserting
+        sorted_melds = [sorted(meld) for meld in melds]
+        self.assertIn(sorted(["5H", "6H", "7H"]), sorted_melds)
+        self.assertIn(sorted(["5H", "5S", "5D"]), sorted_melds)
+
+
+    def test_card_value(self):
+        self.assertEqual(card_value("5H"), 5)
+        self.assertEqual(card_value("KH"), 10)
+        self.assertEqual(card_value("AC"), 1)
+
+    def test_display_card(self):
+        self.assertEqual(display_card("5H"), "5♥")
+        self.assertEqual(display_card("AS"), "A♠")
+
+    def test_display_hand(self):
+        hand = ["5H", "AS", "KD"]
+        self.assertEqual(display_hand(hand), "5♥, A♠, K♦")
+
+    def test_load_config(self):
+        config = load_config("test_config.yaml")
+        self.assertIn("TEST_MODE", config)
+        self.assertIn("INITIAL_HAND_COUNT", config)
+        self.assertIn("SCORING_MODE", config)
+
+    def test_save_config(self):
+        config = {"TEST_MODE": True, "INITIAL_HAND_COUNT": 7, "SCORING_MODE": "manual"}
+        save_config(config, "test_config.yaml")
+        loaded_config = load_config("test_config.yaml")
+        self.assertEqual(loaded_config, config)
+
+if __name__ == "__main__":
+    unittest.main()
