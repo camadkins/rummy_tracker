@@ -3,6 +3,8 @@ from fpdf import FPDF
 import os
 import random
 import sys
+from scoreboard import Scoreboard
+
 
 from utils import (
     sort_hand, is_valid_meld, detect_melds, card_value, display_card, display_hand,
@@ -32,6 +34,7 @@ wife_meld_count = 0
 forced_meld_card = None
 current_player = "me"
 game_active = True
+scoreboard = Scoreboard()
 need_final_discard = {
     "me": False,
     "wife": False
@@ -128,7 +131,7 @@ def options_menu():
         else:
             print("Invalid choice.")
 
-def play_turn():
+def play_turn(scoreboard):
     global current_player, my_hand, wife_hand, discard_pile, my_melds, wife_melds, need_final_discard
     print("-" * 60)  # Separator at start of turn
 
@@ -224,7 +227,7 @@ def play_turn():
                 discard_card = safe_input("Discard a card: ").strip().upper()
                 if discard_card in my_hand:
                     my_hand.remove(discard_card)
-                    discard_pile.append(discard_card)
+                    append_to_discard(discard_card)
                     break
                 else:
                     print("You must discard a valid card from your hand.")
@@ -250,7 +253,7 @@ def play_turn():
             discarded_card = get_valid_card_input("Enter the card your wife discarded: ")
             if wife_hand:
                 wife_hand.pop()
-                discard_pile.append(discarded_card)
+                append_to_discard(discarded_card)
                 if discarded_card in wife_known_cards:
                     wife_known_cards.remove(discarded_card)
                 elif discarded_card in wife_unknown_cards:
@@ -263,12 +266,16 @@ def play_turn():
     calculate_probabilities()
     my_score, wife_score = current_scores()
     print(f"Scores - You: {my_score}, Wife: {wife_score}")
-    check_win_condition()
+
+    # Update scores and check win condition
+    if game_over_conditions_met():
+        update_scores(scoreboard)
+        end_game(scoreboard)
 
     current_player = "wife" if current_player == "me" else "me"
     print("-" * 60)  # Separator at end of turn
 
-def deal():
+def deal(simulate=False):
     global my_hand, wife_hand, deck, wife_unknown_cards, discard_pile, current_player, INITIAL_HAND_COUNT
     my_hand.clear()
     wife_hand.clear()
@@ -280,11 +287,27 @@ def deal():
     wife_meld_count = 0
     need_final_discard = {"me": False, "wife": False}
 
-    ranks = ["A","2","3","4","5","6","7","8","9","T","J","Q","K"]
-    suits = ["S","H","D","C"]
+    ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"]
+    suits = ["S", "H", "D", "C"]
     global deck
     deck = [f"{r}{s}" for r in ranks for s in suits]
+    random.shuffle(deck)
 
+    if simulate:
+        # Automated dealing for simulation
+        if len(deck) < (2 * INITIAL_HAND_COUNT + 1):
+            raise ValueError("Not enough cards in deck to simulate a game!")
+
+        my_hand[:] = [deck.pop() for _ in range(INITIAL_HAND_COUNT)]
+        wife_hand[:] = [deck.pop() for _ in range(INITIAL_HAND_COUNT)]
+        wife_unknown_cards[:] = wife_hand[:]  # In simulation, track wife's hand
+        discard_pile.append(deck.pop())
+        current_player = random.choice(["me", "wife"])
+        print(f"Dealt hands: Player - {my_hand}, Wife - {len(wife_hand)} cards hidden.")
+        print(f"Top of discard pile: {display_card(discard_pile[-1])}")
+        return
+
+    # Interactive dealing for manual play
     print("Dealing cards... You must input your starting cards.")
     while True:
         my_hand_input = safe_input(f"Enter your {INITIAL_HAND_COUNT} cards: ").strip().upper().split(", ")
@@ -313,9 +336,9 @@ def deal():
         print("Error: Not enough cards in the deck to deal to your wife.")
     else:
         wife_cards_sample = random.sample(deck, num_wife_cards)
+        wife_unknown_cards[:] = wife_cards_sample
         for w_card in wife_cards_sample:
             deck.remove(w_card)
-        wife_unknown_cards[:] = deck[:]
 
     print("From the remaining deck, choose the card that is flipped onto the discard pile:")
     top_card = get_valid_card_input("Enter top card to flip or 'skip' to continue: ", deck=deck, allow_skip=True)
@@ -343,8 +366,10 @@ def deal():
         current_player = "me"
         print("Since your wife dealt, you will start.")
 
-    # Call play_turn once initially
-    play_turn()
+    # Call play_turn once initially for manual play
+    if not simulate:
+        play_turn()
+
 
 def wife_picks_discard():
     global wife_hand, discard_pile, wife_known_cards, wife_unknown_cards
@@ -422,53 +447,25 @@ def wife_lays_down_meld():
         print("Error laying down wife's meld.")
 
 def calculate_probabilities():
-    global wife_known_cards, wife_unknown_cards, my_melds, wife_melds, my_hand, discard_pile, deck
+    try:
+        # Existing probability calculation logic
+        player_completion_potential = sum(
+            1 for card in my_hand if any(card[:-1] in meld_card for meld_card in my_melds)
+        )
+        wife_completion_potential = sum(
+            1 for card in wife_known_cards if any(card[:-1] in meld_card for meld_card in wife_melds)
+        )
 
-    # Factors for probability calculation
-    total_cards = len(deck) + len(discard_pile) + len(my_hand) + len(wife_known_cards) + len(wife_unknown_cards)
+        # Avoid division by zero
+        total_potential = player_completion_potential + wife_completion_potential or 1
+        player_prob = player_completion_potential / total_potential
+        wife_prob = wife_completion_potential / total_potential
 
-    # My meld progress
-    my_possible_melds = detect_melds(my_hand)
-    my_meld_count = len(my_melds)
-    my_completion_potential = 0
+        print(f"Estimated win probability - You: {player_prob:.2f}, Wife: {wife_prob:.2f}")
 
-    for card in my_hand:
-        needed_for_meld = []
-        for suit in suits:
-            needed_card = f"{card[:-1]}{suit}"
-            if needed_card not in my_hand and needed_card not in discard_pile:
-                needed_for_meld.append(needed_card)
-        my_completion_potential += len(needed_for_meld)
+    except Exception as e:
+        print(f"Error calculating probabilities: {e}")
 
-    # Wife meld progress
-    wife_meld_count = len(wife_melds)
-    wife_completion_potential = 0
-
-    for card in wife_known_cards:
-        needed_for_meld = []
-        for suit in suits:
-            needed_card = f"{card[:-1]}{suit}"
-            if needed_card not in wife_known_cards and needed_card not in discard_pile:
-                needed_for_meld.append(needed_card)
-        wife_completion_potential += len(needed_for_meld)
-
-    # Estimate unknowns for wife
-    wife_completion_potential += len(wife_unknown_cards) / 3  # Assume 1/3 useful for melds
-
-    # Calculate probabilities
-    my_probability = (my_meld_count + my_completion_potential / total_cards)
-    wife_probability = (wife_meld_count + wife_completion_potential / total_cards)
-
-    total_probability = my_probability + wife_probability
-
-    if total_probability > 0:
-        my_probability = my_probability / total_probability
-        wife_probability = wife_probability / total_probability
-    else:
-        my_probability = wife_probability = 0.5
-
-    # Display probabilities
-    print(f"Estimated win probability - You: {my_probability:.2f}, Wife: {wife_probability:.2f}")
 
 def recommend_discard():
     melds = detect_melds(my_hand)
@@ -481,6 +478,7 @@ def recommend_discard():
         print(f"Recommendation: Discard {display_card(my_hand[-1])}, all cards seem useful.")
 
 def recommend_draw_action():
+    """Enhanced recommendation for where to draw from."""
     melds_before = detect_melds(my_hand)
     best_move = "deck"
     if discard_pile:
@@ -489,12 +487,49 @@ def recommend_draw_action():
         melds_after = detect_melds(temp_hand)
         if len(melds_after) > len(melds_before):
             best_move = "discard"
-    print(f"Recommendation: Draw from the {best_move}.")
+    # Additional logic based on probabilities
+    useful_discard_cards = [
+        card for card in discard_pile if any(card[:-1] == meld_card[:-1] for meld_card in my_hand)
+    ]
+    if useful_discard_cards:
+        best_move = "discard"
+        print(f"Recommendation: Draw from discard pile. Useful cards: {', '.join(display_card(c) for c in useful_discard_cards)}")
+    else:
+        print(f"Recommendation: Draw from the {best_move}.")
 
 def current_scores():
     my_score = sum(card_value(c) for m in my_melds for c in m)
     wife_score = sum(card_value(c) for m in wife_melds for c in m)
     return my_score, wife_score
+
+def update_scores(scoreboard):
+    """Update scores for the current round."""
+    # Automatically calculate scores
+    my_leftover = sum(card_value(c) for c in my_hand)
+    wife_leftover = sum(card_value(c) for c in wife_hand + wife_known_cards + wife_unknown_cards if c != 'HIDDEN')
+
+    calculated_my_score = my_leftover
+    calculated_wife_score = wife_leftover
+
+    print(f"\nCalculated scores for this round:")
+    print(f"  Your score: {calculated_my_score}")
+    print(f"  Wife's score: {calculated_wife_score}")
+
+    if SCORING_MODE == "manual":
+        print("\nYou can override the calculated scores if necessary.")
+        my_score = int(safe_input(f"Enter your score (default {calculated_my_score}): ").strip() or calculated_my_score)
+        wife_score = int(safe_input(f"Enter wife's score (default {calculated_wife_score}): ").strip() or calculated_wife_score)
+    else:  # In auto mode, use calculated scores
+        my_score = calculated_my_score
+        wife_score = calculated_wife_score
+
+    # Update scoreboard
+    scoreboard.add_score("me", my_score)
+    scoreboard.add_score("wife", wife_score)
+
+    print("\nScores updated:")
+    scoreboard.display_scores()
+
 
 def check_win_condition():
     if not my_hand and not need_final_discard["me"]:
@@ -561,43 +596,30 @@ def generate_pdf_report():
 
     pdf.output("data/game_summary.pdf")
 
-def end_game():
-    global game_active, SCORING_MODE, TEST_MODE
-    print("The game has ended!")
+def game_over_conditions_met():
+    global need_final_discard, my_hand, wife_hand
 
-    if SCORING_MODE == "manual":
-        # Manual scoring as before
-        my_final_score = safe_input("Enter your final score: ").strip()
-        wife_final_score = safe_input("Enter your wife's final score: ").strip()
+    if not my_hand and not wife_hand and not (need_final_discard["me"] or need_final_discard["wife"]):
+        return True
 
-        if int(my_final_score) < int(wife_final_score):
-            winner = "Me"
-        elif int(wife_final_score) < int(my_final_score):
-            winner = "Wife"
-        else:
-            winner = "Tie"
-    else:
-        # Auto scoring: leftover points in each hand
-        my_leftover = sum(card_value(c) for c in my_hand)
-        wife_leftover = sum(card_value(c) for c in wife_hand)
-        print(f"Auto Scoring: Leftover points -> You: {my_leftover}, Wife: {wife_leftover}")
-        if my_leftover < wife_leftover:
-            winner = "Me"
-        elif wife_leftover < my_leftover:
-            winner = "Wife"
-        else:
-            winner = "Tie"
-        my_final_score = str(my_leftover)
-        wife_final_score = str(wife_leftover)
+    return False
 
-    append_game_history(my_final_score, wife_final_score, winner)
+
+def end_game(scoreboard):
+    print("\nThe game has ended!")
+    scoreboard.display_scores()
+
+    my_total = scoreboard.get_total_score("me")
+    wife_total = scoreboard.get_total_score("wife")
+    winner = "Tie" if my_total == wife_total else "Me" if my_total < wife_total else "Wife"
+
+    print(f"\nFinal Scores - You: {my_total}, Wife: {wife_total}")
+    print(f"Winner: {winner}")
+
+    # Log to CSV and generate PDF
+    append_game_history(my_total, wife_total, winner)
     generate_pdf_report()
-
-    if not TEST_MODE:
-        print("Game results saved. PDF summary generated in 'data/game_summary.pdf'.")
-    else:
-        print("TEST MODE: No results saved.")
-
+    global game_active
     game_active = False
 
 if __name__ == "__main__":
