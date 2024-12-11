@@ -34,7 +34,8 @@ def sort_hand(hand):
     def card_key(card):
         rank = card[:-1]
         suit = card[-1]
-        return (suits_order.index(suit), ranks_order.index(rank))
+        return (ranks_order.index(rank), suits_order.index(suit))
+
 
     hand.sort(key=card_key)
 
@@ -63,10 +64,10 @@ def is_valid_meld(meld_cards):
 
 def detect_melds(hand):
     order = "A23456789TJQK"
-    from collections import defaultdict
     suits = defaultdict(list)
     ranks = defaultdict(list)
 
+    # Group cards by suits and ranks
     for card in hand:
         rank, suit = card[:-1], card[-1]
         suits[suit].append(rank)
@@ -74,18 +75,23 @@ def detect_melds(hand):
 
     melds_found = []
 
-    # Check runs
+    # Check runs (full runs as a single meld)
     for suit, ranks_list in suits.items():
         sorted_cards = sorted(ranks_list, key=order.index)
-        for i in range(len(sorted_cards) - 2):
-            if (order.index(sorted_cards[i+1]) - order.index(sorted_cards[i]) == 1 and
-                order.index(sorted_cards[i+2]) - order.index(sorted_cards[i+1]) == 1):
-                melds_found.append([f"{r}{suit}" for r in sorted_cards[i:i+3]])
+        run = []
+        for i in range(len(sorted_cards)):
+            if run and order.index(sorted_cards[i]) != order.index(run[-1]) + 1:
+                if len(run) >= 3:
+                    melds_found.append([f"{r}{suit}" for r in run])
+                run = []
+            run.append(sorted_cards[i])
+        if len(run) >= 3:
+            melds_found.append([f"{r}{suit}" for r in run])
 
-    # Check sets
+    # Check sets (all matching ranks as a single meld)
     for rank, suit_list in ranks.items():
         if len(suit_list) >= 3:
-            melds_found.append([f"{rank}{s}" for s in suit_list[:3]])
+            melds_found.append([f"{rank}{suit}" for suit in suit_list])
 
     return melds_found
 
