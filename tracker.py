@@ -5,7 +5,6 @@ import random
 import sys
 from scoreboard import Scoreboard
 
-
 from utils import (
     sort_hand, is_valid_meld, detect_melds, card_value, display_card, display_hand,
     get_yes_no, get_choice, get_valid_card_input, safe_input,
@@ -19,8 +18,8 @@ TEST_MODE = config.get('TEST_MODE', False)
 INITIAL_HAND_COUNT = config.get('INITIAL_HAND_COUNT', 7)
 SCORING_MODE = config.get('SCORING_MODE', 'manual')
 
-ranks = ["A","2","3","4","5","6","7","8","9","T","J","Q","K"]
-suits = ["S","H","D","C"]
+ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"]
+suits = ["S", "H", "D", "C"]
 deck = [f"{r}{s}" for r in ranks for s in suits]
 
 my_hand = []
@@ -62,7 +61,7 @@ def main():
         if choice == '1':
             deal()
             while game_active:
-                play_turn()
+                play_turn(scoreboard)
         elif choice == '2':
             show_help()
         elif choice == '3':
@@ -132,142 +131,19 @@ def options_menu():
             print("Invalid choice.")
 
 def play_turn(scoreboard):
-    global current_player, my_hand, wife_hand, discard_pile, my_melds, wife_melds, need_final_discard
+    global current_player
     print("-" * 60)  # Separator at start of turn
 
     if current_player == "me":
         print("\n--- YOUR TURN ---")
-        if TEST_MODE:
-            print("(Test Mode: No results will be saved.)")
-
-        recommend_draw_action()
-        draw_source = get_choice("Draw from (deck/discard)? ", ['deck','discard'])
-
-        if draw_source == "deck":
-            card = get_valid_card_input("Enter the card you drew: ", deck=deck)
-            my_hand.append(card)
-            deck.remove(card)
-            sort_hand(my_hand)
-            print(f"Card {display_card(card)} added.")
-            print(f"Your hand ({len(my_hand)} cards): {display_hand(my_hand)}")
-            print(f"Remaining deck: {len(deck)}")
-        else:  # discard
-            print(f"Discard pile: {', '.join(display_card(c) for c in discard_pile)}")
-            card = get_valid_card_input("Which card in discard pile to pick? ", discard_pile=discard_pile)
-            idx = discard_pile.index(card)
-            taken_cards = discard_pile[idx:]
-            discard_pile[:] = discard_pile[:idx]
-            my_hand.extend(taken_cards)
-            sort_hand(my_hand)
-            print(f"You took {', '.join(display_card(c) for c in taken_cards)} from discard.")
-            print(f"Your hand ({len(my_hand)} cards): {display_hand(my_hand)}")
-            print(f"Discard pile: {', '.join(display_card(c) for c in discard_pile)}")
-
-        possible_melds = detect_melds(my_hand)
-        if possible_melds:
-            print("You have the following melds detected in your hand:")
-            for i, m in enumerate(possible_melds, start=1):
-                displayed_meld = ", ".join(display_card(card) for card in m)
-                print(f"{i}) {displayed_meld}")
-            choice = get_choice("Lay down a meld? (Enter number or 'n' to skip): ",
-                                [str(i) for i in range(1,len(possible_melds)+1)] + ['n'])
-            if choice != 'n':
-                meld_index = int(choice)-1
-                chosen_meld = possible_melds[meld_index]
-                for c in chosen_meld:
-                    my_hand.remove(c)
-                my_melds.append(chosen_meld)
-                displayed_meld = ", ".join(display_card(c) for c in chosen_meld)
-                print(f"Meld laid down: {displayed_meld}")
-                print(f"Your remaining hand: {display_hand(my_hand)}")
-        else:
-            print("No possible melds to lay down this turn.")
-
-        all_table_melds = [(f"Your meld #{i}", m) for i,m in enumerate(my_melds)] + \
-                          [(f"Wife's meld #{i}", m) for i,m in enumerate(wife_melds)]
-        if all_table_melds:
-            playable_options = []
-            for owner,meld in all_table_melds:
-                for c in my_hand:
-                    new_meld = meld + [c]
-                    if is_valid_meld(new_meld):
-                        playable_options.append((owner, meld, c))
-
-            if playable_options:
-                print("You can play off the following melds:")
-                for i,(owner,meld,c) in enumerate(playable_options, start=1):
-                    meld_str = ", ".join(display_card(x) for x in meld)
-                    print(f"{i}) Add {display_card(c)} to {owner} ({meld_str})")
-
-                choice = get_choice("Choose a play-off option or 'n' to skip: ",
-                                    [str(i) for i in range(1,len(playable_options)+1)] + ['n'])
-                if choice != 'n':
-                    selected = playable_options[int(choice)-1]
-                    owner, old_meld, card_to_add = selected
-                    if "Your meld" in owner:
-                        idx = int(owner.split('#')[-1])
-                        my_melds[idx].append(card_to_add)
-                    else:
-                        idx = int(owner.split('#')[-1])
-                        wife_melds[idx].append(card_to_add)
-                    my_hand.remove(card_to_add)
-                    print(f"Added {display_card(card_to_add)} to {owner}.")
-            else:
-                print("No cards can be played off the existing melds on the table.")
-        else:
-            print("No melds on the table to play off of.")
-
-        if not my_hand:
-            need_final_discard["me"] = True
-
-        # Discard phase: must discard if you have cards
-        if my_hand:
-            recommend_discard()
-            while True:
-                discard_card = safe_input("Discard a card: ").strip().upper()
-                if discard_card in my_hand:
-                    my_hand.remove(discard_card)
-                    append_to_discard(discard_card)
-                    break
-                else:
-                    print("You must discard a valid card from your hand.")
-        else:
-            print("No discard needed because your hand is empty.")
-
+        handle_player_turn()
     else:
         print("\n--- WIFE'S TURN ---")
-        wife_draw_source = get_choice("Did wife draw from deck or discard? ", ['deck','discard'])
-        if wife_draw_source == 'deck':
-            wife_draws_card()
-        else:
-            wife_picks_discard()
-
-        if get_yes_no("Did wife lay down melds? (y/n): ") == 'y':
-            wife_lays_down_meld()
-
-        if not wife_hand:
-            need_final_discard["wife"] = True
-
-        if wife_hand:
-            print("Wife must discard a card now.")
-            discarded_card = get_valid_card_input("Enter the card your wife discarded: ")
-            if wife_hand:
-                wife_hand.pop()
-                append_to_discard(discarded_card)
-                if discarded_card in wife_known_cards:
-                    wife_known_cards.remove(discarded_card)
-                elif discarded_card in wife_unknown_cards:
-                    wife_unknown_cards.remove(discarded_card)
-                print(f"Card {display_card(discarded_card)} added to discard pile.")
-                print(f"Updated discard pile: {', '.join(display_card(c) for c in discard_pile)}")
-            else:
-                print("No cards in wife's hand to discard!")
+        handle_wife_turn()
 
     calculate_probabilities()
-    my_score, wife_score = current_scores()
-    print(f"Scores - You: {my_score}, Wife: {wife_score}")
+    print_scores()
 
-    # Update scores and check win condition
     if game_over_conditions_met():
         update_scores(scoreboard)
         end_game(scoreboard)
@@ -275,81 +151,102 @@ def play_turn(scoreboard):
     current_player = "wife" if current_player == "me" else "me"
     print("-" * 60)  # Separator at end of turn
 
-def deal(simulate=False):
+def deal():
     global my_hand, wife_hand, deck, wife_unknown_cards, discard_pile, current_player, INITIAL_HAND_COUNT
+    reset_game_state()
+
+    print("Dealing cards... You must input your starting cards.")
+    my_hand[:] = get_starting_hand("your", INITIAL_HAND_COUNT)
+    sort_hand(my_hand)
+
+    wife_hand[:] = ["HIDDEN"] * INITIAL_HAND_COUNT
+    wife_unknown_cards[:] = deal_to_wife(INITIAL_HAND_COUNT)
+
+    print("From the remaining deck, choose the card that is flipped onto the discard pile:")
+    top_card = choose_discard_pile_card()
+    if top_card:
+        discard_pile.append(top_card)
+        print(f"Top card {display_card(top_card)} flipped to discard pile.")
+    else:
+        print("No card flipped onto discard pile.")
+
+    print_game_state()
+    set_initial_player()
+
+def handle_player_turn():
+    draw_phase()
+    meld_phase()
+    discard_phase()
+
+def handle_wife_turn():
+    wife_draw_action()
+    wife_meld_action()
+    wife_discard_action()
+
+def draw_phase():
+    print("Drawing phase...")
+    recommend_draw_action()
+    draw_source = get_choice("Draw from (deck/discard)? ", ['deck', 'discard'])
+    draw_card(draw_source, my_hand)
+
+def meld_phase():
+    possible_melds = detect_melds(my_hand)
+    if possible_melds:
+        lay_down_meld(possible_melds)
+    play_off_meld()
+
+def discard_phase():
+    if my_hand:
+        recommend_discard()
+        discard_card = get_valid_card_input("Discard a card: ", deck=my_hand)
+        append_to_discard(discard_card)
+        my_hand.remove(discard_card)
+    else:
+        print("No discard needed because your hand is empty.")
+
+def print_scores():
+    my_score, wife_score = current_scores()
+    print(f"Scores - You: {my_score}, Wife: {wife_score}")
+
+def reset_game_state():
+    """Resets global variables for a new game."""
+    global my_hand, wife_hand, deck, wife_unknown_cards, discard_pile, current_player, my_melds, wife_melds, forced_meld_card, need_final_discard
     my_hand.clear()
     wife_hand.clear()
     discard_pile.clear()
-    global forced_meld_card, my_melds, wife_melds, wife_meld_count, need_final_discard
-    forced_meld_card = None
     my_melds.clear()
     wife_melds.clear()
-    wife_meld_count = 0
+    wife_unknown_cards.clear()
+    forced_meld_card = None
     need_final_discard = {"me": False, "wife": False}
-
-    ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"]
-    suits = ["S", "H", "D", "C"]
-    global deck
-    deck = [f"{r}{s}" for r in ranks for s in suits]
     random.shuffle(deck)
 
-    if simulate:
-        # Automated dealing for simulation
-        if len(deck) < (2 * INITIAL_HAND_COUNT + 1):
-            raise ValueError("Not enough cards in deck to simulate a game!")
-
-        my_hand[:] = [deck.pop() for _ in range(INITIAL_HAND_COUNT)]
-        wife_hand[:] = [deck.pop() for _ in range(INITIAL_HAND_COUNT)]
-        wife_unknown_cards[:] = wife_hand[:]  # In simulation, track wife's hand
-        discard_pile.append(deck.pop())
-        current_player = random.choice(["me", "wife"])
-        print(f"Dealt hands: Player - {my_hand}, Wife - {len(wife_hand)} cards hidden.")
-        print(f"Top of discard pile: {display_card(discard_pile[-1])}")
-        return
-
-    # Interactive dealing for manual play
-    print("Dealing cards... You must input your starting cards.")
+def get_starting_hand(player, count):
+    """Prompts the user to input their starting hand."""
     while True:
-        my_hand_input = safe_input(f"Enter your {INITIAL_HAND_COUNT} cards: ").strip().upper().split(", ")
-        if len(my_hand_input) != INITIAL_HAND_COUNT:
-            print(f"Please enter exactly {INITIAL_HAND_COUNT} cards.")
+        hand_input = safe_input(f"Enter {player} {count} cards: ").strip().upper().split(", ")
+        if len(hand_input) != count:
+            print(f"Please enter exactly {count} cards.")
             continue
-        all_valid = True
-        for card in my_hand_input:
-            if card not in deck:
-                print(f"Warning: {card} is not in the deck.")
-                all_valid = False
-        if not all_valid:
-            print("Some cards were invalid. Please re-enter your hand.")
-            continue
-        my_hand[:] = my_hand_input
-        break
+        if all(card in deck for card in hand_input):
+            for card in hand_input:
+                deck.remove(card)
+            return hand_input
+        print("Invalid cards detected. Please try again.")
 
-    sort_hand(my_hand)
-    num_wife_cards = INITIAL_HAND_COUNT
-    wife_hand[:] = ["HIDDEN"] * num_wife_cards
-
-    for card in my_hand:
+def deal_to_wife(count):
+    """Deals a random hand to the wife from the deck."""
+    sample = random.sample(deck, count)
+    for card in sample:
         deck.remove(card)
+    return sample
 
-    if num_wife_cards > len(deck):
-        print("Error: Not enough cards in the deck to deal to your wife.")
-    else:
-        wife_cards_sample = random.sample(deck, num_wife_cards)
-        wife_unknown_cards[:] = wife_cards_sample
-        for w_card in wife_cards_sample:
-            deck.remove(w_card)
+def choose_discard_pile_card():
+    """Prompts for the top card of the discard pile."""
+    return get_valid_card_input("Enter top card to flip or 'skip' to continue: ", deck=deck, allow_skip=True)
 
-    print("From the remaining deck, choose the card that is flipped onto the discard pile:")
-    top_card = get_valid_card_input("Enter top card to flip or 'skip' to continue: ", deck=deck, allow_skip=True)
-    if top_card:
-        deck.remove(top_card)
-        discard_pile[:] = [top_card]
-        print(f"Top card {display_card(top_card)} flipped to discard pile.")
-    else:
-        discard_pile.clear()
-        print("No card flipped onto discard pile.")
-
+def print_game_state():
+    """Prints the current game state after dealing."""
     print(f"Your hand (sorted, {len(my_hand)} cards): {display_hand(my_hand)}")
     print(f"Wife's hand: {len(wife_hand)} cards (hidden)")
     if discard_pile:
@@ -358,6 +255,9 @@ def deal(simulate=False):
         print("Discard pile is empty.")
     print(f"Remaining cards in deck: {len(deck)}")
 
+def set_initial_player():
+    """Sets the initial player based on who dealt the cards."""
+    global current_player
     dealer = safe_input("Who dealt the cards? (you/wife): ").strip().lower()
     if dealer == "you":
         current_player = "wife"
@@ -366,41 +266,38 @@ def deal(simulate=False):
         current_player = "me"
         print("Since your wife dealt, you will start.")
 
-    # Call play_turn once initially for manual play
-    if not simulate:
-        play_turn()
-
-
-def wife_picks_discard():
-    global wife_hand, discard_pile, wife_known_cards, wife_unknown_cards
-    print(f"Discard pile: {', '.join(display_card(c) for c in discard_pile)}")
-    picked_cards = safe_input("Enter cards your wife picked from the discard pile (e.g., '8D, TH'): ").strip().upper().split(", ")
-    for card in picked_cards:
-        if card in discard_pile:
-            discard_pile.remove(card)
-            wife_known_cards.append(card)
-            wife_hand.append("HIDDEN")
-            if card in wife_unknown_cards:
-                wife_unknown_cards.remove(card)
-        else:
-            print(f"Warning: {card} is not in the discard pile.")
-    print(f"Updated discard pile: {', '.join(display_card(c) for c in discard_pile)}")
-    print(f"Wife's hand: {len(wife_hand)} cards (hidden)")
-
-
 def wife_draws_card():
-    global deck, wife_logic
+    global deck, wife_hand
     if deck:
         drawn_card = deck.pop(0)
-        wife_logic.update_known_cards(drawn_card, action="add")
-        print(f"Your wife drew a card from the deck.")
-        print(wife_logic.analyze_draw(drawn_card))
-
-        if config.get('DISPLAY_WIFE_STRATEGY', False):
-            print("\n--- Wife's Predicted Strategy ---")
-            print(wife_logic.predict_strategy())
+        wife_hand.append("HIDDEN")  # Add a hidden card to wife's hand
+        print("Your wife drew a card from the deck.")
+        print(f"Remaining cards in deck: {len(deck)}")
     else:
-        print("No cards left in deck!")
+        print("No cards left in the deck!")
+
+def wife_draw_action():
+    global deck, wife_hand, discard_pile, wife_known_cards
+    draw_source = get_choice("Did your wife draw from deck or discard? ", ["deck", "discard"])
+    if draw_source == "deck":
+        if deck:
+            wife_hand.append("HIDDEN")
+            deck.pop(0)
+            print("Your wife drew a card from the deck.")
+        else:
+            print("Deck is empty. No cards to draw.")
+    else:  # Handle discard pile logic directly
+        print(f"Discard pile: {', '.join(display_card(c) for c in discard_pile)}")
+        picked_cards = safe_input("Enter cards your wife picked from the discard pile (e.g., '8D, TH'): ").strip().upper().split(", ")
+        for card in picked_cards:
+            if card in discard_pile:
+                discard_pile.remove(card)
+                wife_known_cards.append(card)
+                wife_hand.append("HIDDEN")
+            else:
+                print(f"Warning: {card} is not in the discard pile.")
+        print(f"Updated discard pile: {', '.join(display_card(c) for c in discard_pile)}")
+
 
 def append_to_discard(card):
     """Adds a card to the discard pile only if it's not already the top card."""
@@ -412,16 +309,88 @@ def append_to_discard(card):
         print(f"Card {display_card(card)} added to the discard pile.")
 
 def wife_discards_card():
-    global discard_pile, wife_logic
+    global discard_pile, wife_hand
     discarded_card = get_valid_card_input("Enter the card your wife discarded: ")
-    wife_logic.update_known_cards(discarded_card, action="remove")
+    wife_hand.pop()
     discard_pile.append(discarded_card)
     print(f"Card {display_card(discarded_card)} added to discard pile.")
-    print(wife_logic.analyze_discard(discarded_card))
+    print(f"Updated discard pile: {', '.join(display_card(c) for c in discard_pile)}")
 
-    if config.get('DISPLAY_WIFE_STRATEGY', False):
-        print("\n--- Wife's Predicted Strategy ---")
-        print(wife_logic.predict_strategy())
+def wife_discard_action():
+    global discard_pile, wife_hand, wife_known_cards, wife_unknown_cards
+    discarded_card = get_valid_card_input("Enter the card your wife discarded: ")
+    append_to_discard(discarded_card)
+    if discarded_card in wife_known_cards:
+        wife_known_cards.remove(discarded_card)
+    elif discarded_card in wife_unknown_cards:
+        wife_unknown_cards.remove(discarded_card)
+    if wife_hand:
+        wife_hand.pop()
+    print(f"Card {display_card(discarded_card)} added to discard pile.")
+    print(f"Updated discard pile: {', '.join(display_card(c) for c in discard_pile)}")
+
+def draw_card(source, target):
+    if source == "deck":
+        card = deck.pop(0)
+        target.append(card)
+        print(f"Drew {display_card(card)} from the deck.")
+    elif source == "discard":
+        print(f"Discard pile: {', '.join(display_card(c) for c in discard_pile)}")
+        card = get_valid_card_input("Which card to pick from discard pile? ", discard_pile=discard_pile)
+        idx = discard_pile.index(card)
+        taken_cards = discard_pile[idx:]
+        discard_pile[:] = discard_pile[:idx]
+        target.extend(taken_cards)
+        print(f"Took {', '.join(display_card(c) for c in taken_cards)} from discard pile.")
+
+def lay_down_meld(possible_melds):
+    print("You have the following melds detected in your hand:")
+    for i, m in enumerate(possible_melds, start=1):
+        displayed_meld = ", ".join(display_card(card) for card in m)
+        print(f"{i}) {displayed_meld}")
+    choice = get_choice("Lay down a meld? (Enter number or 'n' to skip): ",
+                        [str(i) for i in range(1, len(possible_melds) + 1)] + ["n"])
+    if choice != "n":
+        meld_index = int(choice) - 1
+        chosen_meld = possible_melds[meld_index]
+        for c in chosen_meld:
+            my_hand.remove(c)
+        my_melds.append(chosen_meld)
+        displayed_meld = ", ".join(display_card(c) for c in chosen_meld)
+        print(f"Meld laid down: {displayed_meld}")
+        print(f"Your remaining hand: {display_hand(my_hand)}")
+
+def play_off_meld():
+    all_table_melds = [(f"Your meld #{i}", m) for i, m in enumerate(my_melds)] + \
+                      [(f"Wife's meld #{i}", m) for i, m in enumerate(wife_melds)]
+    if all_table_melds:
+        playable_options = []
+        for owner, meld in all_table_melds:
+            for c in my_hand:
+                new_meld = meld + [c]
+                if is_valid_meld(new_meld):
+                    playable_options.append((owner, meld, c))
+        if playable_options:
+            print("You can play off the following melds:")
+            for i, (owner, meld, c) in enumerate(playable_options, start=1):
+                meld_str = ", ".join(display_card(x) for x in meld)
+                print(f"{i}) Add {display_card(c)} to {owner} ({meld_str})")
+            choice = get_choice("Choose a play-off option or 'n' to skip: ",
+                                [str(i) for i in range(1, len(playable_options) + 1)] + ["n"])
+            if choice != "n":
+                selected = playable_options[int(choice) - 1]
+                owner, old_meld, card_to_add = selected
+                if "Your meld" in owner:
+                    idx = int(owner.split('#')[-1])
+                    my_melds[idx].append(card_to_add)
+                else:
+                    idx = int(owner.split('#')[-1])
+                    wife_melds[idx].append(card_to_add)
+                my_hand.remove(card_to_add)
+                print(f"Added {display_card(card_to_add)} to {owner}.")
+        else:
+            print("No cards can be played off the existing melds on the table.")
+
 
 def wife_lays_down_meld():
     global wife_hand, wife_known_cards, wife_unknown_cards, wife_meld_count
@@ -445,6 +414,11 @@ def wife_lays_down_meld():
         wife_meld_count += 1
     else:
         print("Error laying down wife's meld.")
+
+def wife_meld_action():
+    if get_yes_no("Did your wife lay down melds? (y/n): ") == "y":
+        wife_lays_down_meld()
+
 
 def calculate_probabilities():
     try:
