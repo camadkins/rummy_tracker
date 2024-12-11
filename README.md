@@ -80,39 +80,6 @@ Key options are stored in `config.yaml` for consistency across sessions:
 
 ---
 
-## New Features
-
-### **WifeLogic Class**
-- Tracks her known cards and melds.
-- Analyzes her actions, offering insights into her strategy.
-- Helps predict her next moves, guiding me to counter strategically.
-
-### **Probability Enhancements**
-- Includes her meld progress and unknown cards for better estimation.
-
-### **Improved Validation and Error Prevention**
-- Prevents duplicate discards.
-- Validates draw and discard actions for consistency.
-
-### **Streamlined Gameplay Flow**
-- Automatically integrates her strategy insights into the turn rotation.
-- Configurable display for wife’s strategy (toggleable via options menu).
-
----
-
-## Additional Commands (Optional)
-
-- **Manual Updates**:
-  - `update_hand`, `update_discard`, `wife_picks_discard`, `wife_draws_card`, `wife_discards_card` allow manual adjustments.
-- **Manual Recommendations**:
-  - `recommend_discard`, `recommend_draw_action` for recalculated suggestions.
-- **Meld Logic**:
-  - `suggest_melds`, `calculate_probabilities` for manual intervention.
-- **End Game**:
-  - `end_game` to finish and log the game early.
-
----
-
 ## Remaining Tasks
 
 - **Undo Functionality**: Allow undoing the last action during a turn.
@@ -120,6 +87,9 @@ Key options are stored in `config.yaml` for consistency across sessions:
 - **GUI Transition**: Develop a graphical interface for improved user experience.
 - **Expanded Testing**: Strengthen edge case handling through rigorous testing.
 - **Rummy Variants**: Add support for advanced Rummy rule sets and scoring.
+- **Simulation Mode**: Reintroduce the simulation functionality for automated gameplay testing.
+
+---
 
 ## Changelog
 
@@ -165,3 +135,4 @@ Key options are stored in `config.yaml` for consistency across sessions:
 - Improved input validation for wife’s draw and discard actions.
 - Streamlined gameplay flow to automatically include wife’s strategy analysis without requiring manual prompts.
 - Refactored turn-based logic for better clarity and maintainability.
+- Removed simulation artifacts and reverted to core gameplay functionality.
